@@ -124,7 +124,7 @@ $app->post('/login', function() use ($app) {
                 } else {
                     // unknown error occurred
                     $response['error'] = true;
-                    $response['message'] = "حدث خطأ في الإتصال حاول مرة أخرى";
+                    $response['message'] = "حدث خطأ في الإتصال حاو مرة أخرى";
                 }
             } else {
                 // user credentials are wrong
