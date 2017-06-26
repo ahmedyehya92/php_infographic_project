@@ -269,7 +269,7 @@ class DbHandler {
     
     public function getfollwedInfographics ($user_id, $page) {
 
-        $limit = 10;
+        $limit = 3;
         $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN following ON infographics.category_id=following.category_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE following.user_id = ? LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $user_id,$page);
         $stmt->execute();
@@ -347,9 +347,35 @@ class DbHandler {
                 
     }
 
-    
-    public function  isliked ($user_id, $infographic_id)
+    public function AH($user_id, $infographic_id)
     {
+         $stmt2 = $this->conn->prepare("SELECT COUNT(id) FROM user_favortes WHERE user_id = ? AND infographic_id = ?");
+                $stmt2->bind_param("ii", $user_id, $infographic_id);
+                if ($stmt2->execute()) 
+                {
+                    
+                    $stmt2->bind_result($userid);
+            $stmt2->fetch();
+            $isBookmarked = array();
+            $isBookmarked["COUNT(id)"] = $userid;
+           
+                   $stmt2->close();
+                   return $isBookmarked;
+                }
+                else {
+            return NULL;
+        }
+                
+    }
+
+        public function  isliked ($user_id, $infographic_id)
+            
+    {
+        
+        
+        
+                
+                
                 $stmt = $this->conn->prepare("SELECT user_favortes.user_id FROM user_favortes WHERE user_favortes.user_id = ? AND user_favortes.infographic_id = ?");
                 $stmt->bind_param("ii", $user_id, $infographic_id);
                 if ($stmt->execute()) 
