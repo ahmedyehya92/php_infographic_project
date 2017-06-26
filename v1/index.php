@@ -261,7 +261,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             $response = array();
             
             
-            $limit = 10;
+            $limit = 3;
             $offset = (--$page) * $limit;
             
   // fetching all user tasks
@@ -450,18 +450,18 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             $result = $db->isBookmarked($user_id, $infographic_id);
            
             $db2 = new DbHandler();
-            $result2 = $db2->isliked($user_id, $infographic_id);
+            $result2 = $db2->AH($user_id, $infographic_id);
             
             if ($result != NULL && $result2 != NULL)
             {
-                if ($result2['user_id'] != [])
+                if ($result2['COUNT(id)'] > 0)
                 {
-                    $isLiked = true;
+                    $AH = true;
                    
                     
                 }
                 else {
-                $isLiked = false;
+                $AH = false;
                 }
                 
                 if ($result['user_id'] != [])
@@ -480,7 +480,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 
                 if ($infographic != NULL) {
                     $response["error"] = false;
-                    $response["isLiked"] = $isLiked;
+                    $response["isLiked"] = $AH;
                     $response["isBookmarked"] = $isBookmarked;
                     $response["infographic"]['name'] = $infographic['name'];
                     $response["infographic"]['image_url'] = $infographic['image_url'];
