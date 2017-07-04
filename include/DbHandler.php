@@ -70,16 +70,28 @@ class DbHandler {
     }
 
     
-    public function insertInfographic($name, $image_url, $source_name,$source_url,$category_id,$source_type_id) {
+    public function insertInfographic($id, $name, $image_url, $source_name,$source_url,$category_id,$source_type_id) {
         
        
             // insert query
-            $stmt = $this->conn->prepare("INSERT INTO infographics (name,image_url,source_name,source_url,category_id,source_type_id) VALUES(?,?,?,?,?,?)");
+        if ($id ==2)
+        {
+            $stmt = $this->conn->prepare("INSERT INTO infographics (name,image_url,source_name,source_url,category_id,source_type_id, data_entry) VALUES(?,?,?,?,?,?,?)");
+            $stmt->bind_param("ssssiii", $name, $image_url, $source_name, $source_url, $category_id, $source_type_id,$id);
+
+            $result = $stmt->execute();
+
+            $stmt->close();
+        }
+ else {
+     $stmt = $this->conn->prepare("INSERT INTO infographics (name,image_url,source_name,source_url,category_id,source_type_id) VALUES(?,?,?,?,?,?)");
             $stmt->bind_param("ssssii", $name, $image_url, $source_name, $source_url, $category_id, $source_type_id);
 
             $result = $stmt->execute();
 
             $stmt->close();
+ }
+            
 
             
          
@@ -237,7 +249,7 @@ class DbHandler {
      */
     //-----------------------------------------------------------
      public function getCategories($category) {
-        $stmt = $this->conn->prepare("SELECT id, category, icon FROM categories");
+        $stmt = $this->conn->prepare("SELECT id, category, icon, follow_counter FROM categories");
         $stmt->execute();
         $categories = $stmt->get_result();
         $stmt->close();
@@ -256,7 +268,7 @@ class DbHandler {
     
     public function getCategorizedInfographics ($category, $page) {
 
-        $limit = 10;
+        $limit = 5;
         $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter  FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE category_id = ? LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $category,$page);
         $stmt->execute();
@@ -269,8 +281,8 @@ class DbHandler {
     
     public function getfollwedInfographics ($user_id, $page) {
 
-        $limit = 3;
-        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN following ON infographics.category_id=following.category_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE following.user_id = ? LIMIT $limit OFFSET ?");
+        $limit = 10;
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN following ON infographics.category_id=following.category_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE following.user_id = ? ORDER BY infographics.id DESC LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $user_id,$page);
         $stmt->execute();
         $infographics = $stmt->get_result();
@@ -316,7 +328,7 @@ class DbHandler {
     }
     public function getUserBookmarks($user_id, $page) {
         $limit = 10;
-        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN user_bookmarks ON infographics.id=user_bookmarks.infographic_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE user_bookmarks.user_id = ? LIMIT $limit OFFSET ?");
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN user_bookmarks ON infographics.id=user_bookmarks.infographic_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE user_bookmarks.user_id = ? ORDER BY user_bookmarks.id DESC LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $user_id, $page);
         $stmt->execute();
         $infographics = $stmt->get_result();
@@ -346,6 +358,8 @@ class DbHandler {
                 
                 
     }
+    
+    
 
     public function AH($user_id, $infographic_id)
     {
@@ -361,6 +375,27 @@ class DbHandler {
            
                    $stmt2->close();
                    return $isBookmarked;
+                }
+                else {
+            return NULL;
+        }
+                
+    }
+    
+     public function isThereFollowed($user_id)
+    {
+         $stmt2 = $this->conn->prepare("SELECT COUNT(id) FROM following WHERE user_id = ?");
+                $stmt2->bind_param("i", $user_id);
+                if ($stmt2->execute()) 
+                {
+                    
+                    $stmt2->bind_result($numberOfFollwed);
+            $stmt2->fetch();
+            $followed = array();
+            $followed["COUNT(id)"] = $numberOfFollwed;
+           
+                   $stmt2->close();
+                   return $followed;
                 }
                 else {
             return NULL;
@@ -460,6 +495,38 @@ class DbHandler {
             }
     }
     
+    public function plusFollowAction($id) {
+            
+            $stmtp = $this->conn->prepare("UPDATE categories SET follow_counter = follow_counter+1 WHERE id = ?");
+            $stmtp->bind_param("s", $id);
+
+            $result = $stmtp->execute();
+
+            $stmtp->close();
+            if ($result) {
+                
+                return "done";
+            } else {
+                
+                return NULL;
+            }
+    }
+    public function MinusFollowAction($id) {
+            
+            $stmtp = $this->conn->prepare("UPDATE categories SET follow_counter = follow_counter-1 WHERE id = ?");
+            $stmtp->bind_param("s", $id);
+
+            $result = $stmtp->execute();
+
+            $stmtp->close();
+            if ($result) {
+                
+                return "done";
+            } else {
+                
+                return NULL;
+            }
+    }
      public function MinusFavoriteAction($id) {
             
             $stmtp = $this->conn->prepare("UPDATE infographics SET like_counter = like_counter-1 WHERE id = ?");
@@ -477,7 +544,7 @@ class DbHandler {
             }
     }
     
-     public function addUserFavorite($user_id, $infographic_id) {
+    public function addUserFavorite($user_id, $infographic_id) {
             
             $stmtp = $this->conn->prepare("INSERT INTO user_favortes (user_id,infographic_id) VALUES (?,?)");
             $stmtp->bind_param("ii", $user_id, $infographic_id);
@@ -494,6 +561,40 @@ class DbHandler {
             }
     }
     
+     public function addUserFollow($user_id, $category_id) {
+            
+            $stmtp = $this->conn->prepare("INSERT INTO following (user_id,category_id) VALUES (?,?)");
+            $stmtp->bind_param("ii", $user_id, $category_id);
+
+            $result = $stmtp->execute();
+
+            $stmtp->close();
+            if ($result) {
+                
+                return "done";
+            } else {
+                
+                return NULL;
+            }
+    }
+    
+    
+    public function deleteUserFollow($user_id, $category_id) {
+            
+            $stmtp = $this->conn->prepare("DELETE FROM following WHERE user_id=? AND category_id=?");
+            $stmtp->bind_param("ii", $user_id, $category_id);
+
+            $result = $stmtp->execute();
+
+            $stmtp->close();
+            if ($result) {
+                
+                return "done";
+            } else {
+                
+                return NULL;
+            }
+    }
     
      public function deleteUserFavorite($user_id, $infographic_id) {
             
