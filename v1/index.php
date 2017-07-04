@@ -7,6 +7,7 @@ require '.././libs/Slim/Slim.php';
 \Slim\Slim::registerAutoloader();
 
 $app = new \Slim\Slim();
+$app->contentType('text/html; charset=utf-8');
 
 // User id from db - Global Variable
 $user_id = NULL;
@@ -160,6 +161,7 @@ $app->post('/login', function() use ($app) {
                 $tmp["id"] = $category["id"];
                 $tmp["category"] = $category["category"];
                 $tmp["icon"] = $category["icon"];
+                $tmp["follow_counter"] = $category["follow_counter"];
                 
                 
                 
@@ -220,11 +222,27 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             global $page;
             $db = new DbHandler();
             $page = $app->request->post('page');
+            $user_id = $app->request->post('user_id');
             $category = $app->request->post('categoryid');
             $response = array();
             
+            $db2 = new DbHandler();
+            $result2 = $db2->isFollowed($user_id, $category);
             
-            $limit = 10;
+            if ($result2 != NULL)
+            {
+                if ($result2['user_id'] != [])
+                {
+                    
+                    $response["isFollowed"] = true;
+                   
+                    
+                }
+                else {
+                $response["isFollowed"] = false;
+                }
+                
+              $limit = 5;
             $offset = (--$page) * $limit;
             
   // fetching all user tasks
@@ -246,10 +264,13 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 
                 array_push($response["infographics"], $tmp);
 
+            }  
             }
+            
+            
 
             echoRespnse(200, $response);
-        });        
+        });     
         
         
         $app->post('/follwedinfographics','authenticate', function() use ($app) {
@@ -261,7 +282,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             $response = array();
             
             
-            $limit = 3;
+            $limit = 10;
             $offset = (--$page) * $limit;
             
   // fetching all user tasks
@@ -336,7 +357,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             $offset = (--$page) * $limit;
             
             // fetching all user tasks
-            $result = $db->getUserBookmarks($user_id, $page);
+            $result = $db->getUserBookmarks($user_id, $offset);
 
             $response["error"] = false;
             $response["infographics"] = array();
@@ -413,7 +434,9 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             global $source_url;
             global $category_id;
             global $source_type_id;
-            
+            global $user_id;
+
+
             $response = array();
             $name = $app->request->post('name');
             $image_url = $app->request->post('image_url');
@@ -421,10 +444,11 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             $source_url = $app->request->post('source_url');
             $category_id = $app->request->post('category_id');
             $source_type_id = $app->request->post('source_type_id');
+            $user_id = $app->request->post('user_id');
             
             
             $db = new DbHandler();
-            $result = $db->insertInfographic($name, $image_url, $source_name,$source_url,$category_id,$source_type_id);
+            $result = $db->insertInfographic($user_id, $name, $image_url, $source_name,$source_url,$category_id,$source_type_id);
            
             if ($result != NULL)
             {
@@ -439,6 +463,42 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             echoRespnse(200, $response);
         });
         
+        $app->post('/isThereFollowed', 'authenticate', function() use ($app) {
+         
+            global $user_id;     
+            $response = array();
+            $user_id = $app->request->post('user_id');
+            $db = new DbHandler();
+            $result = $db->isThereFollowed($user_id);
+           
+            
+            
+            if ($result != NULL)
+            {
+                $response['error'] = false;
+                
+                if ($result['COUNT(id)'] > 0)
+                {
+                    
+                    $isThereFollowed = true;
+                   
+                    
+                }
+                else {
+                $isThereFollowed = false;
+                }
+                
+                $response["isThereFollowed"] = $isThereFollowed;
+                
+            }
+              else {
+                $response['error'] = true;
+                $response['message'] = 'Faild request';
+
+                 }
+            
+            echoRespnse(200, $response);
+        });
         
         $app->post('/getinfographic', 'authenticate', function() use ($app) {
             global $user_id;
@@ -550,6 +610,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 $response["error"] = false;
                if ($result['user_id'] != [])
                 {
+                    $response["isLiked"] = true;
                     $isLiked = true;
                     $result2 = $db->MinusFavoriteAction($infographic_id);
                     $response["unliked"] = $result2;
@@ -559,6 +620,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                     
                 }
                 else {
+                $response["isLiked"] = false;    
                 $isLiked = false;
                 $result2 = $db->plusFavoriteAction($infographic_id);
                 $response["liked"] = $result2;
@@ -577,7 +639,48 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             echoRespnse(200, $response);
         });
         
+$app->post('/followaction', 'authenticate', function() use ($app){
+            global $user_id;
+            global $category_id;
+            $response = array();
+            $user_id = $app->request->post('user_id');
+            $category_id = $app->request->post('category_id');
+            $db = new DbHandler();
+            $result = $db->isFollowed($user_id, $category_id);
 
+            if($result != NULL)
+            {
+                $response["error"] = false;
+               if ($result['user_id'] != [])
+                {
+                    $response["isFollowed"] = false;
+                    $isFollowed = true;
+                    $result2 = $db->MinusFollowAction($category_id);
+                    $response["unfollowed"] = $result2;
+                    $result3 = $db->deleteUserFollow($user_id, $category_id);
+                    $response["delete_user_follow"]= $result3;
+                    
+                    
+                }
+                else {
+                $response["isFollowed"] = true;    
+                $isFollowed = false;
+                $result2 = $db->plusFollowAction($category_id);
+                $response["followed"] = $result2;
+                $result3 = $db->addUserFollow($user_id, $category_id);
+                $response["add_user_follow"]= $result3;
+                } 
+            }
+              
+            else {
+                 $response["error"] = true;
+            }
+            
+            
+
+         
+            echoRespnse(200, $response);
+        });
         
         $app->post('/bookmarkaction', 'authenticate', function() use ($app){
             global $user_id;
@@ -593,6 +696,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 $response["error"] = false;
                if ($result['user_id'] != [])
                 {
+                    $response["isBookmarked"] = true;
                     $isBookmarked = true;
                     $result2 = $db->deleteUserBookmark($user_id, $infographic_id);
                     $response["delete_user_bookmark"]= $result2;
@@ -600,6 +704,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                     
                 }
                 else {
+                $response["isBookmarked"]= false;    
                 $isBookmarked = false;
                
                 $result2 = $db->addUserBookmark($user_id, $infographic_id);
