@@ -68,12 +68,15 @@ $app->post('/register', function() use ($app) {
             $name = $app->request->post('name');
             $email = $app->request->post('email');
             $password = $app->request->post('password');
+            $device = $app->request->post('device');
+            $country = $app->request->post('country');
+            
 
             // validating email address
             validateEmail($email);
 
             $db = new DbHandler();
-            $res = $db->createUser($name, $email, $password);
+            $res = $db->createUser($name, $email, $password, $device, $country);
 
             if (($res != USER_CREATE_FAILED)&&($res != USER_ALREADY_EXISTED)) {
                 $response["error"] = FALSE;
@@ -94,6 +97,49 @@ $app->post('/register', function() use ($app) {
             echoRespnse(201, $response);
         });
 
+        
+        $app->post('/anotherlogin', function() use ($app) {
+            // check for required params
+            verifyRequiredParams(array('name', 'email', 'password'));
+
+            $response = array();
+
+            // reading post params
+            $name = $app->request->post('name');
+            $email = $app->request->post('email');
+            $password = $app->request->post('password');
+            $signType = $app->request->post('sign_type');
+            $device = $app->request->post('device');
+            $country = $app->request->post('country');
+
+            // validating email address
+            validateEmail($email);
+
+            $db = new DbHandler();
+            $res = $db->facebookGoogleLogin($name, $email, $password, $signType, $device, $country);
+
+            if (($res != USER_CREATE_FAILED)&&($res != USER_ALREADY_EXISTED)) {
+                $response["error"] = FALSE;
+                $response["status"] = "done";
+            $response["apiKey"] = $res["api_key"];
+            $response["user"]["id"] = $res["id"];
+            $response["user"]["name"] = $res["name"];
+            $response["user"]["email"] = $res["email"];
+            $response["user"]["created_at"] = $res["created_at"];
+            
+            } else if ($res == USER_CREATE_FAILED) {
+                $response["error"] = true;
+                $response["status"] = "faild";
+                $response["message"] = "خطأ في التسجيل حاول مرة أخرى";
+            } else if ($res == USER_ALREADY_EXISTED) {
+                $response["error"] = true;
+                $response["status"] = "existed";
+                $response["message"] = "هذا الإيميل تم التسجيل به سابقا";
+            }
+            // echo json response
+            echoRespnse(201, $response);
+        });
+        
 /**
  * User Login
  * url - /login
@@ -107,11 +153,12 @@ $app->post('/login', function() use ($app) {
             // reading post params
             $email = $app->request()->post('email');
             $password = $app->request()->post('password');
+            $token = $app->request()->post('token');
             $response = array();
 
             $db = new DbHandler();
             // check for correct email and password
-            if ($db->checkLogin($email, $password)) {
+            if ($db->checkLogin($email, $password, $token)) {
                 // get the user by email
                 $user = $db->getUserByEmail($email);
 
@@ -122,6 +169,7 @@ $app->post('/login', function() use ($app) {
                     $response["user"]['name'] = $user['name'];
                     $response["user"]['email'] = $user['email'];
                     $response["user"]['created_at'] = $user['created_at'];
+                    $response["user"]['token'] = $user['token'];
                 } else {
                     // unknown error occurred
                     $response['error'] = true;
@@ -173,7 +221,32 @@ $app->post('/login', function() use ($app) {
 //------------------------------------------------------
 
         
-       
+       $app->post('/checkupdate', 'authenticate', function() use ($app) {
+            global $versionCode;
+           
+            $response = array();
+            $versionCode = $app->request->post('version_code');
+            $db = new DbHandler();
+            $result = $db->checkUpdate($versionCode);
+            $response["error"] = false;
+            
+            
+            
+            
+            while ($category = $result->fetch_assoc()) {
+                
+             
+                
+                if($category["important_update"]==1)
+                {
+                $response["status"] = true;
+                }
+               else {
+                $response["status"] = false;
+               }
+            }
+            echoRespnse(200, $response);
+        });
 
         
         
@@ -216,6 +289,47 @@ $app->post('/login', function() use ($app) {
             }
             echoRespnse(200, $response);
         });
+        
+        
+        
+        
+        $app->post('/notifiedinfographics','authenticate', function() use ($app) {
+            global $category;
+            $db = new DbHandler();
+            $category = $app->request->post('categoryid');
+            $response = array();
+          
+            
+  // fetching all user tasks
+            $result = $db->getNotifiedInfographics ($category);
+            $response["error"] = false;
+            $response["infographics"] = array();
+            // looping through result and preparing tasks array
+            while ($infographic = $result->fetch_assoc()) {
+                $tmp = array();
+                $tmp["id"] = $infographic["id"];
+                $tmp["name"] = $infographic["name"];
+                $tmp["image_url"] = $infographic["image_url"];
+                $tmp["source_name"] = $infographic["source_name"];
+                $tmp["type"] = $infographic["type"];
+                $tmp["type_icon_url"] = $infographic["type_icon_url"];
+                $tmp["like_counter"] = $infographic["like_counter"];
+                $tmp["seen"] = $infographic["seen"];
+                
+                
+                
+                
+                array_push($response["infographics"], $tmp);
+
+            }  
+            
+            
+            
+
+            echoRespnse(200, $response);
+        });     
+        
+        
 
 $app->post('/infographicscatg','authenticate', function() use ($app) {
             global $category;
@@ -242,7 +356,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 $response["isFollowed"] = false;
                 }
                 
-              $limit = 5;
+              $limit = 10;
             $offset = (--$page) * $limit;
             
   // fetching all user tasks
@@ -258,7 +372,9 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 $tmp["source_name"] = $infographic["source_name"];
                 $tmp["type"] = $infographic["type"];
                 $tmp["type_icon_url"] = $infographic["type_icon_url"];
-                $tmp["like_counter"] = $infographic["like_counter"];    
+                $tmp["like_counter"] = $infographic["like_counter"];
+                $tmp["seen"] = $infographic["seen"];
+                
                 
                 
                 
@@ -272,6 +388,97 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             echoRespnse(200, $response);
         });     
         
+       
+        $app->post('/sendnotification','authenticate', function() use ($app) {
+            $message = $app->request->post('message');
+            $title = $app->request->post('title');
+            $type = $app->request->post('type');
+            $id = $app->request->post('id');
+            $db = new DbHandler();
+            
+            $response = array();
+            
+           
+  // fetching all user tasks
+            $result = $db->sendNotification ();
+            $response["error"] = false;
+            $tokens_arr = [];
+            $response["tokens"] = array();
+      
+            
+            foreach ($result as $key => $token) {
+            array_push($tokens_arr, $token['token']);
+}
+            $data = array('title' => $title,'message' => $message, 'type' => $type, 'id' => $id);
+            $db2 = new DbHandler();
+            $result2 = $db2->sendMessageThroughFCM($tokens_arr, $data);
+            $response["FCM Response"] = $result2;
+            echoRespnse(200, $response);
+        });
+        
+        $app->post('/sendnotificationforme','authenticate', function() use ($app) {
+            $message = $app->request->post('message');
+            $title = $app->request->post('title');
+            $type = $app->request->post('type');
+            $id = $app->request->post('id');
+            $db = new DbHandler();
+            
+            $response = array();
+            
+           
+  // fetching all user tasks
+            $result = $db->sendNotificationForMe ();
+            $response["error"] = false;
+            $tokens_arr = [];
+            $response["tokens"] = array();
+      
+            
+            foreach ($result as $key => $token) {
+            array_push($tokens_arr, $token['token']);
+}
+            $data = array('title' => $title,'message' => $message, 'type' => $type, 'id' => $id);
+            $db2 = new DbHandler();
+            $result2 = $db2->sendMessageThroughFCM($tokens_arr, $data);
+            $response["FCM Response"] = $result2;
+            echoRespnse(200, $response);
+        });
+        
+$app->post('/searchedinfographics','authenticate', function() use ($app) {
+            global $query;
+            global $page;
+            $db = new DbHandler();
+            $page = $app->request->post('page');
+            $query = $app->request->post('query');
+            $response = array();
+            
+            
+            $limit = 10;
+            $offset = (--$page) * $limit;
+            
+  // fetching all user tasks
+            $result = $db->getSearchedInfographics ($query,$offset);
+            $response["error"] = false;
+            $response["infographics"] = array();
+            // looping through result and preparing tasks array
+            while ($infographic = $result->fetch_assoc()) {
+                $tmp = array();
+                $tmp["id"] = $infographic["id"];
+                $tmp["name"] = $infographic["name"];
+                $tmp["image_url"] = $infographic["image_url"];
+                $tmp["source_name"] = $infographic["source_name"];
+                $tmp["type"] = $infographic["type"];
+                $tmp["type_icon_url"] = $infographic["type_icon_url"];
+                $tmp["like_counter"] = $infographic["like_counter"];
+                $tmp["seen"] = $infographic["seen"];
+               
+                
+                array_push($response["infographics"], $tmp);
+
+            }
+
+            echoRespnse(200, $response);
+        });
+
         
         $app->post('/follwedinfographics','authenticate', function() use ($app) {
             global $user_id;
@@ -298,7 +505,8 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 $tmp["source_name"] = $infographic["source_name"];
                 $tmp["type"] = $infographic["type"];
                 $tmp["type_icon_url"] = $infographic["type_icon_url"];
-                $tmp["like_counter"] = $infographic["like_counter"];                
+                $tmp["like_counter"] = $infographic["like_counter"];
+                $tmp["seen"] = $infographic["seen"];
                
                 
                 array_push($response["infographics"], $tmp);
@@ -308,6 +516,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             echoRespnse(200, $response);
         });
 
+        
 
         $app->post('/selectedtag','authenticate', function() use ($app) {
             global $tag_id;
@@ -372,6 +581,8 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                 $tmp["type"] = $infographic["type"];
                 $tmp["type_icon_url"] = $infographic["type_icon_url"];
                 $tmp["like_counter"] = $infographic["like_counter"];
+                $tmp["seen"] = $infographic["seen"];
+
                 
                 array_push($response["infographics"], $tmp);
             }
@@ -426,6 +637,62 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
             echoRespnse(200, $response);
         });
         
+        
+        $app->post('/inserttoken', 'authenticate', function() use ($app) {
+           
+            global $token;
+            
+
+
+            $response = array();
+            
+            $token = $app->request->post('token');
+            
+            
+            
+            $db = new DbHandler();
+            $result = $db->insertToken($token);
+           
+            if ($result != NULL)
+            {
+                $response["error"] = false;
+                $response["status"] = "done";
+            }
+              
+            else {
+                 $response["error"] = true;
+                $response["status"] = "there is some wrong";
+            }
+            echoRespnse(200, $response);
+        });
+        
+        $app->post('/updatetoken', 'authenticate', function() use ($app) {
+           
+            global $token;
+            
+
+
+            $response = array();
+            
+            $token = $app->request->post('token');
+            $email = $app->request->post('email');
+            
+            
+            $db = new DbHandler();
+            $result = $db->updateToken($token,$email);
+           
+            if ($result != NULL)
+            {
+                $response["error"] = false;
+                $response["status"] = "done";
+            }
+              
+            else {
+                 $response["error"] = true;
+                $response["status"] = "there is some wrong";
+            }
+            echoRespnse(200, $response);
+        });
         
         $app->post('/insertinfographic', 'authenticate', function() use ($app) {
             global $name;
@@ -547,6 +814,7 @@ $app->post('/infographicscatg','authenticate', function() use ($app) {
                     $response["infographic"]['source_name'] = $infographic['source_name'];
                     $response["infographic"]['source_url'] = $infographic['source_url'];
                     $response["infographic"]['like_counter'] = $infographic['like_counter'];
+                    $response["infographic"]['seen'] = $infographic['seen'];
                     $response["infographic"]['category_id'] = $infographic['category_id'];
                     $response["infographic"]['type'] = $infographic['type'];
                     $response["infographic"]['type_icon_url'] = $infographic['type_icon_url'];
@@ -926,7 +1194,7 @@ function validateEmail($email) {
     $app = \Slim\Slim::getInstance();
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $response["error"] = true;
-        $response["message"] = 'Email address is not valid';
+        $response["message"] = 'صيغة البريد الإلكتروني خاطئة أكتب عنوان صحيح';
         echoRespnse(400, $response);
         $app->stop();
     }
