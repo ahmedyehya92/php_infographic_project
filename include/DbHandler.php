@@ -26,7 +26,7 @@ class DbHandler {
      * @param String $email User login email id
      * @param String $password User login password
      */
-    public function createUser($name, $email, $password) {
+    public function createUser($name, $email, $password, $device, $country) {
         require_once 'PassHash.php';
         $response = array();
 
@@ -39,8 +39,8 @@ class DbHandler {
             $api_key = $this->generateApiKey();
 
             // insert query
-            $stmt = $this->conn->prepare("INSERT INTO users(name, email, password_hash, api_key, status) values(?, ?, ?, ?, 1)");
-            $stmt->bind_param("ssss", $name, $email, $password_hash, $api_key);
+            $stmt = $this->conn->prepare("INSERT INTO users(name, email, password_hash, api_key, device, country, status) values(?, ?, ?, ?, ?, ?, 1)");
+            $stmt->bind_param("ssssss", $name, $email, $password_hash, $api_key, $device, $country);
 
             $result = $stmt->execute();
 
@@ -69,6 +69,85 @@ class DbHandler {
         return $response;
     }
 
+    
+    public function facebookGoogleLogin($name, $email, $password, $signType, $device, $country) {
+        require_once 'PassHash.php';
+        $response = array();
+
+        // First check if user already existed in db
+        if (!$this->isUserExists($email)) {
+            // Generating password hash
+            $password_hash = PassHash::hash($password);
+
+            // Generating API key
+            $api_key = $this->generateApiKey();
+
+             
+            // insert query
+            $stmt = $this->conn->prepare("INSERT INTO users(name, email, password_hash, sign_type, api_key, device, country, status) values(?, ?, ?, ?, ?, 1)");
+            $stmt->bind_param("sssssss", $name, $email, $password_hash, $signType, $api_key, $device, $country);
+
+            $result = $stmt->execute();
+
+            $stmt->close();
+
+            // Check for successful insertion
+            if ($result) {
+                // User successfully inserted
+                // User successfully inserted
+                 $stmt = $this->conn->prepare("SELECT * FROM users WHERE email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $user = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+ 
+            return $user;
+            } else {
+                // Failed to create user
+                return USER_CREATE_FAILED;
+            }
+        } else {
+            // User with same email already existed in the db
+            return USER_ALREADY_EXISTED;
+        }
+
+        return $response;
+    }
+    
+    
+    public function insertToken($token) {
+        
+       
+            // insert query
+       
+            $stmt = $this->conn->prepare("INSERT INTO users_tokens (token) VALUES(?)");
+            $stmt->bind_param("s", $token);
+
+            $result = $stmt->execute();
+
+            $stmt->close();
+        
+ 
+ 
+        return $result;
+    }
+    
+    public function updateToken($token, $email) {
+        
+       
+            // insert query
+       
+            $stmt = $this->conn->prepare("UPDATE users SET token = ? WHERE email = ?");
+            $stmt->bind_param("ss", $token, $email);
+
+            $result = $stmt->execute();
+
+            $stmt->close();
+        
+ 
+ 
+        return $result;
+    }
     
     public function insertInfographic($id, $name, $image_url, $source_name,$source_url,$category_id,$source_type_id) {
         
@@ -105,8 +184,9 @@ class DbHandler {
      * @param String $password User login password
      * @return boolean User login status success/fail
      */
-    public function checkLogin($email, $password) {
+    public function checkLogin($email, $password, $token) {
         // fetching user by email
+        
         $stmt = $this->conn->prepare("SELECT password_hash FROM users WHERE email = ?");
 
         $stmt->bind_param("s", $email);
@@ -127,6 +207,8 @@ class DbHandler {
 
             if (PassHash::check_password($password_hash, $password)) {
                 // User password is correct
+                
+                $this->updateToken($token, $email);
                 return TRUE;
             } else {
                 // user password is incorrect
@@ -160,11 +242,11 @@ class DbHandler {
      * @param String $email User email id
      */
     public function getUserByEmail($email) {
-        $stmt = $this->conn->prepare("SELECT id, name, email, api_key, status, created_at FROM users WHERE email = ?");
+        $stmt = $this->conn->prepare("SELECT id, name, email, api_key, status, created_at, token FROM users WHERE email = ?");
         $stmt->bind_param("s", $email);
         if ($stmt->execute()) {
             // $user = $stmt->get_result()->fetch_assoc();
-            $stmt->bind_result($id, $name, $email, $api_key, $status, $created_at);
+            $stmt->bind_result($id, $name, $email, $api_key, $status, $created_at, $token);
             $stmt->fetch();
             $user = array();
             $user["id"] = $id;
@@ -173,6 +255,7 @@ class DbHandler {
             $user["api_key"] = $api_key;
             $user["status"] = $status;
             $user["created_at"] = $created_at;
+            $user["token"] = $token;
             $stmt->close();
             return $user;
         } else {
@@ -257,6 +340,17 @@ class DbHandler {
     }
     //------------------------------------------------------------
     
+    
+    public function checkUpdate($versionCode) {
+        $stmt = $this->conn->prepare("SELECT important_update FROM update_status WHERE version_code=?");
+        $stmt->bind_param("i", $versionCode);
+        $stmt->execute();
+        $status = $stmt->get_result();
+        $stmt->close();
+        return $status;
+    }
+    
+    
     public function getFollowingCategories($category) {
         $stmt = $this->conn->prepare("SELECT id, category, FROM categories");
         $stmt->execute();
@@ -265,11 +359,75 @@ class DbHandler {
         return $categories;
     }
     
+    public function sendNotification ()
+    {
+        $stmt = $this->conn->prepare("SELECT token FROM users");
+        $stmt->execute();
+        $tokens = $stmt->get_result();
+        $stmt->close();
+        
+        return $tokens;
+    }
     
+    public function sendNotificationForMe ()
+    {
+        //$email = 'ahmedyehya1992@gmail.com';
+        $stmt = $this->conn->prepare("SELECT token FROM users WHERE email = 'ahmedyehya1992@gmail.com'");
+        $stmt->execute();
+        $tokens = $stmt->get_result();
+        $stmt->close();
+        
+        return $tokens;
+    }
+    
+    function sendMessageThroughFCM($registatoin_ids, $data)
+{
+    $url = 'https://fcm.googleapis.com/fcm/send';
+    $fields = array(
+        'registration_ids' =>   $registatoin_ids   ,
+        'data' => $data,
+    );
+    //************   rplace this with your api key ***************// 
+    define("GOOGLE_API_KEY", "AIzaSyCrfWsMpg7fRTQE2w1IeP7t3PfFtweJdwQ");
+    $headers = array(
+        'Authorization: key=' . GOOGLE_API_KEY,
+        'Content-Type: application/json'
+    );
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fields));
+    $result = curl_exec($ch);
+    if ($result === FALSE) {
+        die('Curl failed: ' . curl_error($ch));
+    }
+    curl_close($ch);
+    return $result;
+
+ }
+    
+ 
+ public function getNotifiedInfographics ($category) {
+
+        $limit = 10;
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter, infographics.seen FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE category_id = ? ORDER BY  RAND( ) LIMIT $limit");
+        $stmt->bind_param("i", $category);
+        $stmt->execute();
+        $infographics = $stmt->get_result();
+        $stmt->close();
+        return $infographics;
+
+    }
+ 
+ 
     public function getCategorizedInfographics ($category, $page) {
 
-        $limit = 5;
-        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter  FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE category_id = ? LIMIT $limit OFFSET ?");
+        $limit = 10;
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter, infographics.seen FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE category_id = ? LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $category,$page);
         $stmt->execute();
         $infographics = $stmt->get_result();
@@ -277,12 +435,23 @@ class DbHandler {
         return $infographics;
 
     }
-    
+    public function getSearchedInfographics ($query, $page) {
+
+        $limit = 10;
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter, infographics.seen FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE infographics.name LIKE ? LIMIT $limit OFFSET ?");
+        $param = "%" . $query . "%"; 
+        $stmt->bind_param("si", $param,$page);
+        $stmt->execute();
+        $infographics = $stmt->get_result();
+        $stmt->close();
+        return $infographics;
+
+    }
     
     public function getfollwedInfographics ($user_id, $page) {
 
         $limit = 10;
-        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN following ON infographics.category_id=following.category_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE following.user_id = ? ORDER BY infographics.id DESC LIMIT $limit OFFSET ?");
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter, infographics.seen FROM infographics INNER JOIN following ON infographics.category_id=following.category_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE following.user_id = ? ORDER BY  RAND( ) LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $user_id,$page);
         $stmt->execute();
         $infographics = $stmt->get_result();
@@ -304,11 +473,18 @@ class DbHandler {
     }
     
     public function getInfographic($infographic_id) {
-    $stmt = $this->conn->prepare("SELECT infographics.name, infographics.image_url,infographics.source_name,infographics.source_url, infographics.like_counter,infographics.category_id, source_type.type,source_type.type_icon_url FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE infographics.id = ?");
+        $stmtp = $this->conn->prepare("UPDATE infographics SET seen = seen+1 WHERE infographics.id = ?");
+            $stmtp->bind_param("s", $infographic_id);
+
+            $result = $stmtp->execute();
+
+            $stmtp->close();
+        
+    $stmt = $this->conn->prepare("SELECT infographics.name, infographics.image_url,infographics.source_name,infographics.source_url, infographics.like_counter,infographics.seen,infographics.category_id, source_type.type,source_type.type_icon_url FROM infographics INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE infographics.id = ?");
         $stmt->bind_param("s", $infographic_id);
         if ($stmt->execute()) {
             // $user = $stmt->get_result()->fetch_assoc();
-            $stmt->bind_result($name, $image_url, $source_name, $source_url, $like_counter, $category_id, $type, $type_icon);
+            $stmt->bind_result($name, $image_url, $source_name, $source_url, $like_counter, $seen, $category_id, $type, $type_icon);
             $stmt->fetch();
             $infographic = array();
             $infographic["name"] = $name;
@@ -316,6 +492,7 @@ class DbHandler {
             $infographic["source_name"] = $source_name;
             $infographic["source_url"] = $source_url;
             $infographic["like_counter"] = $like_counter;
+            $infographic["seen"] = $seen;
             $infographic["category_id"] = $category_id;
             $infographic["type"] = $type;
             $infographic["type_icon_url"] = $type_icon;
@@ -328,7 +505,7 @@ class DbHandler {
     }
     public function getUserBookmarks($user_id, $page) {
         $limit = 10;
-        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter FROM infographics INNER JOIN user_bookmarks ON infographics.id=user_bookmarks.infographic_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE user_bookmarks.user_id = ? ORDER BY user_bookmarks.id DESC LIMIT $limit OFFSET ?");
+        $stmt = $this->conn->prepare("SELECT infographics.id, infographics.name, infographics.image_url,infographics.source_name, source_type.type,source_type.type_icon_url, infographics.like_counter, infographics.seen FROM infographics INNER JOIN user_bookmarks ON infographics.id=user_bookmarks.infographic_id INNER JOIN source_type ON infographics.source_type_id=source_type.id WHERE user_bookmarks.user_id = ? ORDER BY user_bookmarks.id DESC LIMIT $limit OFFSET ?");
         $stmt->bind_param("ii", $user_id, $page);
         $stmt->execute();
         $infographics = $stmt->get_result();
@@ -336,8 +513,9 @@ class DbHandler {
         return $infographics;
     }
     
-    
-    public function  isBookmarked ($user_id, $infographic_id)
+            
+
+        public function  isBookmarked ($user_id, $infographic_id)
     {
                 $stmt = $this->conn->prepare("SELECT user_bookmarks.user_id FROM user_bookmarks WHERE user_bookmarks.user_id = ? AND user_bookmarks.infographic_id = ?");
                 $stmt->bind_param("ii", $user_id, $infographic_id);
