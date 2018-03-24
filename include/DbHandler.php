@@ -84,7 +84,7 @@ class DbHandler {
 
              
             // insert query
-            $stmt = $this->conn->prepare("INSERT INTO users(name, email, password_hash, sign_type, api_key, device, country, status) values(?, ?, ?, ?, ?, 1)");
+            $stmt = $this->conn->prepare("INSERT INTO users(name, email, password_hash, sign_type, api_key, device, country, status) values(?, ?, ?, ?, ?, ?, ?, 1)");
             $stmt->bind_param("sssssss", $name, $email, $password_hash, $signType, $api_key, $device, $country);
 
             $result = $stmt->execute();
@@ -170,13 +170,33 @@ class DbHandler {
 
             $stmt->close();
  }
-            
-
-            
-         
-
+ 
         return $result;
     }
+    
+    
+    public function getNumOfInserted()
+ {
+     
+     $stmt2 = $this->conn->prepare("SELECT COUNT(*) FROM infographics WHERE data_entry = 2;");
+                
+                if ($stmt2->execute()) 
+                {
+                    
+                    $stmt2->bind_result($count);
+            $stmt2->fetch();
+            $counter = array();
+            $counter["COUNT(*)"] = $count;
+           
+                   $stmt2->close();
+                   return $counter;
+                }
+                else {
+            return NULL;
+        }
+                
+ }
+       
     
     /**
      * Checking user login

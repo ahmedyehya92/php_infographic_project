@@ -71,6 +71,9 @@ $app->post('/register', function() use ($app) {
             $device = $app->request->post('device');
             $country = $app->request->post('country');
             
+           
+           
+            
 
             // validating email address
             validateEmail($email);
@@ -85,6 +88,24 @@ $app->post('/register', function() use ($app) {
             $response["user"]["name"] = $res["name"];
             $response["user"]["email"] = $res["email"];
             $response["user"]["created_at"] = $res["created_at"];
+            
+             $message = $name;
+            
+            
+             $db2 = new DbHandler();
+            
+            $result2 = $db2->sendNotificationForMe ();
+            
+            $tokens_arr = [];
+            
+             foreach ($result2 as $key => $token) {
+            array_push($tokens_arr, $token['token']);
+}
+            $data = array('title' => 'مستخدم جديد','message' => $message, 'type' => '3', 'id' => '1');
+            $db3 = new DbHandler();
+            $result3 = $db3->sendMessageThroughFCM($tokens_arr, $data);
+            $response["FCM Response"] = $result3;
+            
             
             } else if ($res == USER_CREATE_FAILED) {
                 $response["error"] = true;
@@ -126,6 +147,23 @@ $app->post('/register', function() use ($app) {
             $response["user"]["name"] = $res["name"];
             $response["user"]["email"] = $res["email"];
             $response["user"]["created_at"] = $res["created_at"];
+            
+            $message = $name;
+            
+            
+             $db2 = new DbHandler();
+            
+            $result2 = $db2->sendNotificationForMe ();
+            
+            $tokens_arr = [];
+            
+             foreach ($result2 as $key => $token) {
+            array_push($tokens_arr, $token['token']);
+}
+            $data = array('title' => 'مستخدم جديد','message' => $message, 'type' => '3', 'id' => '1');
+            $db3 = new DbHandler();
+            $result3 = $db3->sendMessageThroughFCM($tokens_arr, $data);
+            $response["FCM Response"] = $result3;
             
             } else if ($res == USER_CREATE_FAILED) {
                 $response["error"] = true;
@@ -476,6 +514,24 @@ $app->post('/searchedinfographics','authenticate', function() use ($app) {
 
             }
 
+            $message = $query;
+            
+            
+             $db2 = new DbHandler();
+            
+            $result2 = $db2->sendNotificationForMe ();
+            
+            $tokens_arr = [];
+            
+             foreach ($result2 as $key => $token) {
+            array_push($tokens_arr, $token['token']);
+}
+            $data = array('title' => 'مستخدم يبحث عن','message' => $message, 'type' => '3', 'id' => '1');
+            $db3 = new DbHandler();
+            $result3 = $db3->sendMessageThroughFCM($tokens_arr, $data);
+            $response["FCM Response"] = $result3;
+            
+            
             echoRespnse(200, $response);
         });
 
@@ -716,16 +772,19 @@ $app->post('/searchedinfographics','authenticate', function() use ($app) {
             
             $db = new DbHandler();
             $result = $db->insertInfographic($user_id, $name, $image_url, $source_name,$source_url,$category_id,$source_type_id);
+            $result2 = $db->getNumOfInserted();
            
             if ($result != NULL)
             {
                 $response["error"] = false;
                 $response["status"] = "done";
+                $response["Number of Inserted Infographics = "]= $result2['COUNT(*)'];
             }
               
             else {
                  $response["error"] = true;
                 $response["status"] = "there is some wrong";
+                $response["Number of Inserted Infographics = "]= $result2['COUNT(*)'];
             }
             echoRespnse(200, $response);
         });
